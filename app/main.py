@@ -1,11 +1,11 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 
-from app.database import create_database_tables as init_database_tables, SessionLocal
+from app.database import create_database_tables as init_database_tables, get_db
 from app.models import JobApplication
 from app.db_models import Application
+from sqlalchemy.orm import Session
 
 app = FastAPI()
-applications = []
 
 
 @app.on_event("startup")
@@ -46,84 +46,83 @@ def skills():
   "database": "PostgreSQL"
 }
 @app.post("/applications")
-def create_application(application: JobApplication):
-    db = SessionLocal()
+def create_application(application: JobApplication, db: Session = Depends(get_db)):
+    db_application = Application(
+        company=application.company,
+        role=application.role,
+        status=application.status,
+    )
 
-    try:
-        db_application = Application(
-            company=application.company,
-            role=application.role,
-            status=application.status,
-        )
+    db.add(db_application)
+    db.commit()
+    db.refresh(db_application)
 
-        db.add(db_application)
-        db.commit()
-        db.refresh(db_application)
-
-        return {
-            "message": "Application added successfully",
-            "id": db_application.id,
-        }
-    finally:
-        db.close()
+    return {
+        "message": "Application added successfully",
+        "id": db_application.id,
+    }
 @app.get("/applications")
-def get_applications():
-    db = SessionLocal()
+def get_applications(db: Session = Depends(get_db)):
+    db_applications = db.query(Application).all()
 
-    try:
-        db_applications = db.query(Application).all()
+    return [
+        {
+            "id": app.id,
+            "company": app.company,
+            "role": app.role,
+            "status": app.status,
+        }
+        for app in db_applications
+    ]
+@app.delete("/applications/{application_id}")
+def delete_application(application_id: int, db: Session = Depends(get_db)):
+    db_application = (
+        db.query(Application)
+        .filter(Application.id == application_id)
+        .first()
+    )
 
-        return [
-            {
-                "id": app.id,
-                "company": app.company,
-                "role": app.role,
-                "status": app.status,
-            }
-            for app in db_applications
-        ]
-    finally:
-        db.close()
-@app.delete("/applications/{index}")
-def delete_application(index: int):
-    if index < 0 or index >= len(applications):
+    if db_application is None:
         raise HTTPException(status_code=404, detail="Application not found")
 
-    deleted_application = applications.pop(index)
+    deleted_data = {
+        "id": db_application.id,
+        "company": db_application.company,
+        "role": db_application.role,
+        "status": db_application.status,
+    }
+
+    db.delete(db_application)
+    db.commit()
 
     return {
         "message": "Application deleted successfully",
-        "deleted": deleted_application
+        "deleted": deleted_data,
     }
 @app.put("/applications/{application_id}")
-def update_application(application_id: int, application: JobApplication):
-    db = SessionLocal()
+def update_application(application_id: int, application: JobApplication, db: Session = Depends(get_db)):
+    db_application = (
+        db.query(Application)
+        .filter(Application.id == application_id)
+        .first()
+    )
 
-    try:
-        db_application = (
-            db.query(Application)
-            .filter(Application.id == application_id)
-            .first()
-        )
+    if db_application is None:
+        raise HTTPException(status_code=404, detail="Application not found")
 
-        if db_application is None:
-            raise HTTPException(status_code=404, detail="Application not found")
+    db_application.company = application.company
+    db_application.role = application.role
+    db_application.status = application.status
 
-        db_application.company = application.company
-        db_application.role = application.role
-        db_application.status = application.status
+    db.commit()
+    db.refresh(db_application)
 
-        db.commit()
-        db.refresh(db_application)
-
-        return {
-            "message": "Application updated successfully",
-            "updated": {
-                "id": db_application.id,
-                "company": db_application.company,
-                "role": db_application.role,
-                "status": db_application.status,
-            },
-        }
-    finally:
-        db.close()
+    return {
+        "message": "Application updated successfully",
+        "updated": {
+            "id": db_application.id,
+            "company": db_application.company,
+            "role": db_application.role,
+            "status": db_application.status,
+        },
+    }
