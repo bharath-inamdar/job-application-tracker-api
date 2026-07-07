@@ -129,12 +129,18 @@ def login_user(
     }
 @app.get("/applications")
 def get_applications(
+    skip: int = 0,
+    limit: int = 10,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    db_applications = db.query(Application).filter(
-        Application.user_id == current_user.id
-    ).all()
+    db_applications = (
+        db.query(Application)
+        .filter(Application.user_id == current_user.id)
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
 
     return [
         {
