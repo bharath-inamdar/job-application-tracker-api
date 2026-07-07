@@ -1,8 +1,21 @@
 from fastapi import FastAPI, HTTPException, Depends
+from fastapi.security import OAuth2PasswordRequestForm
 
 from app.database import create_database_tables as init_database_tables, get_db
-from app.models import JobApplication
-from app.db_models import Application
+from app.models import (
+    JobApplication,
+    UserRegister,
+    ApplicationResponse,
+    LoginResponse,
+    UserRegisterResponse,
+)
+from app.db_models import Application, User
+from app.security import (
+    hash_password,
+    verify_password,
+    create_access_token,
+    get_current_user,
+)
 from sqlalchemy.orm import Session
 
 app = FastAPI()
@@ -45,12 +58,17 @@ def skills():
   "framework": "FastAPI",
   "database": "PostgreSQL"
 }
-@app.post("/applications")
-def create_application(application: JobApplication, db: Session = Depends(get_db)):
+@app.post("/applications", response_model=ApplicationResponse)
+def create_application(
+    application: JobApplication,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     db_application = Application(
         company=application.company,
         role=application.role,
         status=application.status,
+        user_id=current_user.id,
     )
 
     db.add(db_application)
@@ -61,9 +79,62 @@ def create_application(application: JobApplication, db: Session = Depends(get_db
         "message": "Application added successfully",
         "id": db_application.id,
     }
+
+# User registration endpoint
+@app.post("/register", response_model=UserRegisterResponse)
+def register_user(user: UserRegister, db: Session = Depends(get_db)):
+    existing_username = db.query(User).filter(User.username == user.username).first()
+    if existing_username:
+        raise HTTPException(status_code=400, detail="Username already exists")
+
+    existing_email = db.query(User).filter(User.email == user.email).first()
+    if existing_email:
+        raise HTTPException(status_code=400, detail="Email already exists")
+
+    db_user = User(
+        username=user.username,
+        email=user.email,
+        hashed_password=hash_password(user.password),
+    )
+
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+
+    return {
+        "message": "User registered successfully",
+        "user_id": db_user.id,
+        "username": db_user.username,
+    }
+
+# User login endpoint
+@app.post("/login", response_model=LoginResponse)
+def login_user(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
+):
+    db_user = db.query(User).filter(User.email == form_data.username).first()
+
+    if db_user is None:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    if not verify_password(form_data.password, db_user.hashed_password):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    access_token = create_access_token({"sub": db_user.email})
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+    }
 @app.get("/applications")
-def get_applications(db: Session = Depends(get_db)):
-    db_applications = db.query(Application).all()
+def get_applications(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    db_applications = db.query(Application).filter(
+        Application.user_id == current_user.id
+    ).all()
 
     return [
         {
@@ -75,10 +146,17 @@ def get_applications(db: Session = Depends(get_db)):
         for app in db_applications
     ]
 @app.delete("/applications/{application_id}")
-def delete_application(application_id: int, db: Session = Depends(get_db)):
+def delete_application(
+    application_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     db_application = (
         db.query(Application)
-        .filter(Application.id == application_id)
+        .filter(
+            Application.id == application_id,
+            Application.user_id == current_user.id,
+        )
         .first()
     )
 
@@ -100,10 +178,18 @@ def delete_application(application_id: int, db: Session = Depends(get_db)):
         "deleted": deleted_data,
     }
 @app.put("/applications/{application_id}")
-def update_application(application_id: int, application: JobApplication, db: Session = Depends(get_db)):
+def update_application(
+    application_id: int,
+    application: JobApplication,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     db_application = (
         db.query(Application)
-        .filter(Application.id == application_id)
+        .filter(
+            Application.id == application_id,
+            Application.user_id == current_user.id,
+        )
         .first()
     )
 

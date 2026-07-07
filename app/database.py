@@ -4,10 +4,18 @@ import sys
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase, Session
 
+import os
+from dotenv import load_dotenv
+
 if __package__ in (None, ""):
     sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-DATABASE_URL = "postgresql://localhost/job_tracker"
+load_dotenv()
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL environment variable is not set")
 
 engine = create_engine(DATABASE_URL)
 

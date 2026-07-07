@@ -1,5 +1,14 @@
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String, ForeignKey
 from app.database import Base
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, nullable=False)
+    email = Column(String, unique=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
 
 
 class Application(Base):
@@ -9,3 +18,4 @@ class Application(Base):
     company = Column(String)
     role = Column(String)
     status = Column(String)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
