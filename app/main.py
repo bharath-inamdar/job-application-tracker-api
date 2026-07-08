@@ -80,6 +80,9 @@ def create_application(
         company=application.company,
         role=application.role,
         status=application.status,
+        applied_date=application.applied_date,
+        job_link=application.job_link,
+        notes=application.notes,
         user_id=current_user.id,
     )
 
@@ -160,6 +163,9 @@ def get_applications(
             "company": app.company,
             "role": app.role,
             "status": app.status,
+            "applied_date": app.applied_date,
+            "job_link": app.job_link,
+            "notes": app.notes,
         }
         for app in db_applications
     ]
@@ -217,6 +223,9 @@ def update_application(
     db_application.company = application.company
     db_application.role = application.role
     db_application.status = application.status
+    db_application.applied_date = application.applied_date
+    db_application.job_link = application.job_link
+    db_application.notes = application.notes
 
     db.commit()
     db.refresh(db_application)
@@ -228,5 +237,8 @@ def update_application(
             "company": db_application.company,
             "role": db_application.role,
             "status": db_application.status,
+            "applied_date": db_application.applied_date,
+            "job_link": db_application.job_link,
+            "notes": db_application.notes,
         },
     }

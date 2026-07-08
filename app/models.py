@@ -6,6 +6,9 @@ class JobApplication(BaseModel):
     company: str = Field(..., min_length=1, max_length=100)
     role: str = Field(..., min_length=1, max_length=100)
     status: Literal["Applied", "Interview", "Rejected", "Offer"]
+    applied_date: str | None = None
+    job_link: str | None = None
+    notes: str | None = None
 
 
 # Pydantic models for user registration and login

@@ -18,4 +18,7 @@ class Application(Base):
     company = Column(String)
     role = Column(String)
     status = Column(String)
+    applied_date = Column(String)
+    job_link = Column(String)
+    notes = Column(String)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
